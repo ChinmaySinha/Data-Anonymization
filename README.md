@@ -3,7 +3,7 @@
 data set = git clone https://huggingface.co/datasets/ai4privacy/pii-masking-300k
 
 
-currently we stand at:
+currently we stand at:  (regex + ner + classifier)
 
 
 --- Overall Performance Metrics ---
