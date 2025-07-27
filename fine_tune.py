@@ -85,29 +85,29 @@ def main():
         
     output_dir = "roberta-base-pii-finetuned"
     
-    # --- UPDATED TRAINING ARGUMENTS ---
+    # --- THIS SECTION IS NOW CORRECTED ---
     training_args = TrainingArguments(
         output_dir=output_dir,
         learning_rate=2e-5,
         per_device_train_batch_size=8,
-        per_device_eval_batch_size=8, # We can use a safe batch size now
+        per_device_eval_batch_size=8,
         num_train_epochs=1,
         weight_decay=0.01,
-        evaluation_strategy="no",      # <-- CHANGE 1: Do not evaluate automatically
+        eval_strategy="no",      # Corrected argument name
         save_strategy="epoch",
         fp16=True,
         max_steps=50
     )
 
-    # --- CHANGE 2: Create a smaller subset for evaluation ---
+    # Create a smaller subset for evaluation
     train_dataset = tokenized_dataset["train"]
-    eval_dataset = tokenized_dataset["validation"].select(range(1000)) # Use only 1000 samples for a quick eval
+    eval_dataset = tokenized_dataset["validation"].select(range(1000))
 
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset, # Pass in the smaller eval set
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
@@ -121,7 +121,7 @@ def main():
     trainer.save_model(output_dir)
     
     print("--- Starting Evaluation ---")
-    metrics = trainer.evaluate() # <-- CHANGE 3: Manually run evaluation after training
+    metrics = trainer.evaluate()
     
     print("--- Fine-Tuning and Evaluation Complete ---")
     print("Evaluation Metrics:")
