@@ -93,10 +93,10 @@ def main():
         per_device_eval_batch_size=8,
         num_train_epochs=1,
         weight_decay=0.01,
-        eval_strategy="no",      # Corrected argument name
+        eval_strategy="epoch",      # Corrected argument name
         save_strategy="epoch",
         fp16=True,
-        max_steps=50
+        load_best_model_at_end=True
     )
 
     # Create a smaller subset for evaluation

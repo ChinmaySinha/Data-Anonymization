@@ -11,6 +11,7 @@ def run_anonymization_pipeline(text: str) -> list:
     ner_results = detect_entities_with_ner(text)
     
     all_detections = regex_results + ner_results
+    #all_detections = ner_results #checking just the ner capabilities
     # Remove duplicates that might arise from both methods
     unique_detections = []
     seen_positions = set()
@@ -36,7 +37,7 @@ if __name__ == '__main__':
     train_dataset = dataset_dict['train']
     
     # --- Process a Subset of the Dataset and Evaluate ---
-    num_samples_to_process = 20
+    num_samples_to_process = 200
     subset = train_dataset.select(range(num_samples_to_process))
 
     total_tp, total_fp, total_fn = 0, 0, 0

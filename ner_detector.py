@@ -2,8 +2,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 
 try:
-    # --- THIS IS THE ONLY CHANGE ---
-    # Point to the local folder containing your new, fine-tuned model.
+    # Point to the local folder containing your fine-tuned model
     model_name = "./roberta-base-pii-finetuned"
     
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -23,53 +22,66 @@ def detect_entities_with_ner(text: str) -> list:
         print("NER model/tokenizer not available.")
         return []
 
-    # 1. Tokenize input and get character-to-token mappings (offsets)
     inputs = tokenizer(
         text,
         return_tensors="pt",
         return_offsets_mapping=True,
         truncation=True
     )
-    offset_mapping = inputs.pop("offset_mapping")[0]
+    offset_mapping = inputs.pop("offset_mapping")[0].tolist()
 
-    # 2. Run the model (inference)
     with torch.no_grad():
         outputs = model(**inputs)
         logits = outputs.logits
 
-    # 3. Get the predicted class for each token
-    predictions = torch.argmax(logits, dim=2)[0]
-
-    # 4. Reconstruct entities from tokens
-    entities = []
-    current_entity_tokens = []
+    predictions = torch.argmax(logits, dim=2)[0].tolist()
     
-    for i, token_prediction_id in enumerate(predictions):
-        label_name = model.config.id2label[token_prediction_id.item()]
-        
-        if label_name != 'O':
-            current_entity_tokens.append(i)
-        
-        is_end_of_entity = (label_name == 'O' or label_name.startswith('B-')) and current_entity_tokens
-        is_end_of_text = (i == len(predictions) - 1) and current_entity_tokens
+    # --- CORRECTED ENTITY RECONSTRUCTION LOGIC ---
+    entities = []
+    current_entity = None
 
-        if is_end_of_entity or is_end_of_text:
-            start_char = offset_mapping[current_entity_tokens[0]][0].item()
-            end_char = offset_mapping[current_entity_tokens[-1]][1].item()
+    for i, token_prediction_id in enumerate(predictions):
+        label_name = model.config.id2label[token_prediction_id]
+        
+        # Skip special tokens
+        if offset_mapping[i] == [0, 0]:
+            continue
+
+        if label_name.startswith('B-'):
+            # If we have a current entity, save it before starting a new one
+            if current_entity:
+                current_entity['word'] = text[current_entity['start']:current_entity['end']]
+                entities.append(current_entity)
             
-            entity_group = model.config.id2label[predictions[current_entity_tokens[0]].item()].split('-')[-1]
-            
-            entities.append({
-                'entity_group': entity_group,
-                'word': text[start_char:end_char],
-                'start': start_char,
-                'end': end_char
-            })
-            # Reset for the next entity
-            current_entity_tokens = []
-            
-            # If the current token itself is the start of a new entity, begin tracking it
-            if label_name.startswith('B-'):
-                current_entity_tokens.append(i)
-                
+            # Start a new entity
+            current_entity = {
+                "entity_group": label_name[2:],
+                "start": offset_mapping[i][0],
+                "end": offset_mapping[i][1]
+            }
+        elif label_name.startswith('I-') and current_entity:
+            # If it's a continuation of the same entity type, extend it
+            if label_name[2:] == current_entity["entity_group"]:
+                current_entity["end"] = offset_mapping[i][1]
+            else:
+                # If it's a different entity type, save the old one and start a new one
+                current_entity['word'] = text[current_entity['start']:current_entity['end']]
+                entities.append(current_entity)
+                current_entity = {
+                    "entity_group": label_name[2:],
+                    "start": offset_mapping[i][0],
+                    "end": offset_mapping[i][1]
+                }
+        else:
+            # If it's 'O' or an unexpected tag, save the current entity and reset
+            if current_entity:
+                current_entity['word'] = text[current_entity['start']:current_entity['end']]
+                entities.append(current_entity)
+                current_entity = None
+    
+    # Add the last entity if the text ends with it
+    if current_entity:
+        current_entity['word'] = text[current_entity['start']:current_entity['end']]
+        entities.append(current_entity)
+
     return entities
