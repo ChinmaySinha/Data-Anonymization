@@ -17,7 +17,7 @@ def main():
     print(f"🚀 Training will run on: {device.upper()}")
     print("─" * 80)
 
-    model_name = "roberta-base"
+    model_name = "Jean-Baptiste/roberta-large-ner-english"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -34,14 +34,14 @@ def main():
         model_name,
         num_labels=len(bio_label_list),
         id2label=bio_id2label,
-        label2id=bio_label2id
+        label2id=bio_label2id,
+        ignore_mismatched_sizes=True
     )
 
     def align_labels_with_tokens(example):
         tokenized_inputs = tokenizer(example["source_text"], truncation=True, is_split_into_words=False)
         labels = []
         word_ids = tokenized_inputs.word_ids()
-        
         char_to_label = ['O'] * len(example["source_text"])
         for pii in example["privacy_mask"]:
             pii_type = pii["label"]
@@ -51,7 +51,6 @@ def main():
                 for i in range(start + 1, end):
                     if i < len(char_to_label):
                         char_to_label[i] = f"I-{pii_type}"
-
         previous_word_idx = None
         for word_idx in word_ids:
             if word_idx is None:
@@ -66,13 +65,11 @@ def main():
                 except (KeyError, IndexError):
                     labels.append(bio_label2id['O'])
             previous_word_idx = word_idx
-
         tokenized_inputs["labels"] = labels
         return tokenized_inputs
 
     tokenized_dataset = dataset_dict.map(align_labels_with_tokens, batched=False)
     data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer)
-
     seqeval = evaluate.load("seqeval")
 
     def compute_metrics(p):
@@ -83,9 +80,8 @@ def main():
         results = seqeval.compute(predictions=true_predictions, references=true_labels)
         return {"precision": results["overall_precision"], "recall": results["overall_recall"], "f1": results["overall_f1"], "accuracy": results["overall_accuracy"]}
         
-    output_dir = "roberta-base-pii-finetuned"
+    output_dir = "roberta-large-pii-finetuned"
     
-    # --- THIS SECTION IS NOW CORRECTED ---
     training_args = TrainingArguments(
         output_dir=output_dir,
         learning_rate=2e-5,
@@ -93,39 +89,36 @@ def main():
         per_device_eval_batch_size=8,
         num_train_epochs=1,
         weight_decay=0.01,
-        eval_strategy="epoch",      # Corrected argument name
+        eval_strategy="epoch",
         save_strategy="epoch",
+        load_best_model_at_end=True,
         fp16=True,
-        load_best_model_at_end=True
     )
 
-    # Create a smaller subset for evaluation
-    train_dataset = tokenized_dataset["train"]
-    eval_dataset = tokenized_dataset["validation"].select(range(1000))
+    # --- THIS SECTION IS NOW CORRECTED ---
+    # First, get the full dataset splits
+    train_dataset_full = tokenized_dataset["train"]
+    eval_dataset_full = tokenized_dataset["validation"]
+
+    # Then, create the subsets from the full splits
+    train_subset = train_dataset_full.shuffle(seed=42).select(range(40000))
+    eval_subset = eval_dataset_full.shuffle(seed=42).select(range(10000))
+    # ------------------------------------
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=train_subset,      # Use the correct subset variable
+        eval_dataset=eval_subset,        # Use the correct subset variable
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
 
-    # --- RUN TRAINING AND EVALUATION SEPARATELY ---
-    print("--- Starting Fine-Tuning (Training Only) ---")
+    print("--- Starting Fine-Tuning of the 'large' model ---")
     trainer.train()
-    
-    print("--- Saving model ---")
     trainer.save_model(output_dir)
-    
-    print("--- Starting Evaluation ---")
-    metrics = trainer.evaluate()
-    
-    print("--- Fine-Tuning and Evaluation Complete ---")
-    print("Evaluation Metrics:")
-    print(metrics)
+    print(f"--- Fine-Tuning Complete. Super-model saved to '{output_dir}' ---")
 
 if __name__ == "__main__":
     main()
