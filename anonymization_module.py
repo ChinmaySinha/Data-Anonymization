@@ -1,9 +1,9 @@
 from faker import Faker
 
-# Initialize Faker
+# Initialize Faker. We can specify 'en_IN' for Indian-context names.
 faker = Faker('en_IN')
 
-# Mapping from our model's entity types to the correct Faker function
+# Create a mapping from our model's entity types to the correct Faker function
 FAKER_PROVIDER_MAP = {
     'PERSON': faker.name,
     'PER': faker.name,
@@ -26,10 +26,13 @@ def pseudonymize(entity_text, entity_type, pseudonym_map):
     Replaces an entity with a consistent but realistic fake value.
     """
     if entity_text not in pseudonym_map:
+        # Check if we have a specific Faker provider for this entity type
         provider = FAKER_PROVIDER_MAP.get(entity_type.upper())
         if provider:
+            # Generate a new, realistic fake value
             pseudonym_map[entity_text] = provider()
         else:
+            # Fallback for unknown entity types
             new_id = len(pseudonym_map) + 1
             pseudonym_map[entity_text] = f"[{entity_type.upper()}_{new_id}]"
     
@@ -43,7 +46,7 @@ def generalize(entity_type):
 
 def anonymize_text(original_text, entities_with_sensitivity):
     """
-    Applies anonymization techniques based on a 3-tiered sensitivity threshold.
+    Applies advanced anonymization techniques based on entity sensitivity.
     """
     anonymized_text = original_text
     pseudonym_map = {}
@@ -57,18 +60,15 @@ def anonymize_text(original_text, entities_with_sensitivity):
 
         replacement_text = ""
 
-        # --- FINAL 3-TIERED THRESHOLD LOGIC ---
-        if sensitivity == "High Sensitivity":
-            # High sensitivity -> Pseudonymize with realistic data
+        # --- FINAL CORRECTED THRESHOLD LOGIC ---
+        if sensitivity == "High Sensitivity" or sensitivity == "Medium Sensitivity":
+            # For High and Medium sensitivity, we will pseudonymize with realistic data.
             replacement_text = pseudonymize(original_entity_text, entity_type, pseudonym_map)
         
-        elif sensitivity == "Medium Sensitivity":
-            # Medium sensitivity -> Generalize with a category tag
+        elif sensitivity == "Low Sensitivity":
+            # For Low sensitivity, we will generalize with a category tag.
             replacement_text = generalize(entity_type)
-        
-        # If sensitivity is "Low Sensitivity", we do nothing.
-        # replacement_text remains "" and the text is not changed.
-        # ---------------------------------------------------
+        # ----------------------------------------
 
         if replacement_text:
             anonymized_text = anonymized_text[:start] + replacement_text + anonymized_text[end:]
