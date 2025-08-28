@@ -87,3 +87,6 @@ The PII detection pipeline achieves the following performance metrics on the eva
 *   `pii_evaluate.py`: Calculates performance metrics for PII detection.
 *   `fine_tune.py`: The script for fine-tuning the RoBERTa model.
 *   `requirement.txt`: A list of the required Python packages for the project.
+
+## Future works:
+  To make this system contect-aware using LLMs (working on that)
