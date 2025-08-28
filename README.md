@@ -15,3 +15,4 @@ currently we stand at:  (regex + ner + classifier)
 
 
 To run this on your system, first run fine_tune.py
+then main.py
