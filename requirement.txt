@@ -1,0 +1,18 @@
+# Core Hugging Face and PyTorch libraries for models and training
+transformers
+torch
+datasets
+accelerate
+
+# For performance evaluation
+evaluate
+seqeval
+
+# For realistic fake data generation in anonymization
+Faker
+
+# For fast, general-purpose NER (names, orgs, etc.)
+spacy
+
+# For handling the .arrow data format in datasets
+pyarrow
