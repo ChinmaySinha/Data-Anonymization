@@ -11,3 +11,7 @@ currently we stand at:  (regex + ner + classifier)
   - Recall:    0.9766
   - F1-Score:  0.9742
 ---------------------------------
+
+
+
+To run this on your system, first run fine_tune.py
