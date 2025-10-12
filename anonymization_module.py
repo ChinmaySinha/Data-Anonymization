@@ -1,76 +1,42 @@
-from faker import Faker
+from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig
 
-# Initialize Faker. We can specify 'en_IN' for Indian-context names.
-faker = Faker('en_IN')
+# Initialize the AnonymizerEngine
+anonymizer = AnonymizerEngine()
 
-# Create a mapping from our model's entity types to the correct Faker function
-FAKER_PROVIDER_MAP = {
-    'PERSON': faker.name,
-    'PER': faker.name,
-    'NAME': faker.name,
-    'CITY': faker.city,
-    'LOCATION': faker.address,
-    'ORGANIZATION': faker.company,
-    'ORG': faker.company,
-    'USERNAME': faker.user_name,
-    'EMAIL': faker.email,
-    'PHONE_NUMBER': faker.phone_number,
-    'TEL': faker.phone_number,
-    'IP_ADDRESS': faker.ipv4,
-    'IP': faker.ipv4,
-    'ID_NUM': faker.ssn,
-}
-
-def pseudonymize(entity_text, entity_type, pseudonym_map):
+def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
     """
-    Replaces an entity with a consistent but realistic fake value.
+    Anonymizes text using Presidio's AnonymizerEngine based on sensitivity.
     """
-    if entity_text not in pseudonym_map:
-        # Check if we have a specific Faker provider for this entity type
-        provider = FAKER_PROVIDER_MAP.get(entity_type.upper())
-        if provider:
-            # Generate a new, realistic fake value
-            pseudonym_map[entity_text] = provider()
-        else:
-            # Fallback for unknown entity types
-            new_id = len(pseudonym_map) + 1
-            pseudonym_map[entity_text] = f"[{entity_type.upper()}_{new_id}]"
-    
-    return pseudonym_map[entity_text]
-
-def generalize(entity_type):
-    """
-    Replaces an entity with its general category type (e.g., [CITY]).
-    """
-    return f"[{entity_type.upper()}]"
-
-def anonymize_text(original_text, entities_with_sensitivity):
-    """
-    Applies advanced anonymization techniques based on entity sensitivity.
-    """
-    anonymized_text = original_text
-    pseudonym_map = {}
-    
-    for entity in sorted(entities_with_sensitivity, key=lambda x: x['start'], reverse=True):
-        start = entity['start']
-        end = entity['end']
-        entity_type = entity['entity_group']
+    # Define operators for different sensitivity levels
+    operators = {}
+    for entity in entities_with_sensitivity:
         sensitivity = entity['sensitivity']
-        original_entity_text = entity['word']
+        entity_type = entity['entity_group']
 
-        replacement_text = ""
-
-        # --- FINAL CORRECTED THRESHOLD LOGIC ---
         if sensitivity == "High Sensitivity" or sensitivity == "Medium Sensitivity":
-            # For High and Medium sensitivity, we will pseudonymize with realistic data.
-            replacement_text = pseudonymize(original_entity_text, entity_type, pseudonym_map)
-        
+            # For High/Medium sensitivity, replace with a placeholder like <PERSON>
+            operators[entity_type] = OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
         elif sensitivity == "Low Sensitivity":
-            # For Low sensitivity, we will generalize with a category tag.
-            replacement_text = generalize(entity_type)
-        # ----------------------------------------
+            # For Low sensitivity, mask with a fixed character
+            operators[entity_type] = OperatorConfig("mask", {"type": "fixed", "masking_char": "*", "chars_to_mask": len(entity['word']), "from_end": False})
 
-        if replacement_text:
-            anonymized_text = anonymized_text[:start] + replacement_text + anonymized_text[end:]
-            
-    return anonymized_text
+    # Convert our entity format to Presidio's AnalyzerResult format
+    analyzer_results = []
+    for entity in entities_with_sensitivity:
+        from presidio_analyzer import RecognizerResult
+        analyzer_results.append(RecognizerResult(
+            entity_type=entity['entity_group'],
+            start=entity['start'],
+            end=entity['end'],
+            score=entity.get('score', 0.85)  # Use detected score or a default
+        ))
+
+    # Anonymize the text
+    anonymized_result = anonymizer.anonymize(
+        text=original_text,
+        analyzer_results=analyzer_results,
+        operators=operators
+    )
+
+    return anonymized_result.text

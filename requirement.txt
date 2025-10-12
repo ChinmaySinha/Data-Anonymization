@@ -16,3 +16,7 @@ spacy
 
 # For handling the .arrow data format in datasets
 pyarrow
+
+# For Presidio-based PII detection and anonymization
+presidio-analyzer
+presidio-anonymizer
