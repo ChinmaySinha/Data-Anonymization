@@ -5,12 +5,15 @@ from anonymization_module import anonymize_text
 
 class TestAnonymizationPipeline(unittest.TestCase):
 
-    def test_full_pipeline_with_presidio(self):
+    def test_full_pipeline_with_faker(self):
         """
-        Tests the full PII anonymization pipeline with the new Presidio-based components.
+        Tests the full PII anonymization pipeline with Faker producing dynamic fake data.
         """
-        # Sample text containing various PII entities, including our custom one
+        # Sample text containing various PII entities
         original_text = "Contact Mr. John Doe at john.doe@example.com. His Polish ID is ABC123456 and his location is New York."
+
+        # A list of the original PII values we expect to be replaced
+        original_pii_values = ["John Doe", "john.doe@example.com", "ABC123456", "New York", "Polish"]
 
         # --- Step 1: PII Detection ---
         detected_entities = detect_all_pii(original_text)
@@ -25,20 +28,20 @@ class TestAnonymizationPipeline(unittest.TestCase):
         # --- Step 3: Anonymization ---
         anonymized_text_result = anonymize_text(original_text, entities_with_sensitivity)
 
-        # --- Step 4: Verification ---
-        # The expected output reflects that "Polish" is detected as a low-sensitivity
-        # entity (NRP) and masked, while the ID number is replaced as high-sensitivity.
-        expected_anonymized_text = "Contact Mr. <PERSON> at <EMAIL_ADDRESS>. His ****** ID is <POLISH_IDENTITY_CARD> and his location is <LOCATION>."
+        # --- Step 4: Verification for Dynamic Data ---
+        # Since Faker generates random data, we can't do an exact string comparison.
+        # Instead, we verify that the original PII values are no longer in the output.
 
-        # We need to sort the entities by start position to apply replacements correctly
-        # The anonymization module already handles this, so we can directly compare.
-
-        print("\n--- Test Pipeline Results ---")
-        print(f"Original: {original_text}")
+        print("\n--- Test Pipeline Results (with Faker) ---")
+        print(f"Original:   {original_text}")
         print(f"Anonymized: {anonymized_text_result}")
-        print(f"Expected:   {expected_anonymized_text}")
 
-        self.assertEqual(anonymized_text_result, expected_anonymized_text)
+        # Check 1: The anonymized text should NOT be the same as the original.
+        self.assertNotEqual(original_text, anonymized_text_result)
+
+        # Check 2: None of the original PII values should appear in the final text.
+        for pii_value in original_pii_values:
+            self.assertNotIn(pii_value, anonymized_text_result)
 
 if __name__ == '__main__':
     unittest.main()

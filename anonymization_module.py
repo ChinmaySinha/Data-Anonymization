@@ -1,38 +1,66 @@
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
+from presidio_analyzer import RecognizerResult
+from faker import Faker
 
-# Initialize the AnonymizerEngine
+# Initialize the AnonymizerEngine and Faker
 anonymizer = AnonymizerEngine()
+faker = Faker("en_IN") # Use Indian locale for context-appropriate fake data
+
+# Mapping of Presidio entity types to Faker method names
+FAKER_PROVIDER_MAP = {
+    'PERSON': 'name',
+    'EMAIL_ADDRESS': 'email',
+    'PHONE_NUMBER': 'phone_number',
+    'LOCATION': 'address',
+    'URL': 'url',
+    'IP_ADDRESS': 'ipv4',
+    'CREDIT_CARD': 'credit_card_number',
+    'US_SSN': 'ssn',
+    'US_DRIVER_LICENSE': 'license_plate',
+    'DATE_TIME': 'date',
+    'POLISH_IDENTITY_CARD': 'ssn',
+}
 
 def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
     """
-    Anonymizes text using Presidio's AnonymizerEngine based on sensitivity.
+    Anonymizes text using Presidio's AnonymizerEngine, replacing PII with
+    realistic fake data using a custom Faker operator.
     """
-    # Define operators for different sensitivity levels
     operators = {}
     for entity in entities_with_sensitivity:
         sensitivity = entity['sensitivity']
         entity_type = entity['entity_group']
 
         if sensitivity == "High Sensitivity" or sensitivity == "Medium Sensitivity":
-            # For High/Medium sensitivity, replace with a placeholder like <PERSON>
-            operators[entity_type] = OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
-        elif sensitivity == "Low Sensitivity":
-            # For Low sensitivity, mask with a fixed character
-            operators[entity_type] = OperatorConfig("mask", {"type": "fixed", "masking_char": "*", "chars_to_mask": len(entity['word']), "from_end": False})
+            faker_provider_name = FAKER_PROVIDER_MAP.get(entity_type)
+            if faker_provider_name:
+                # The 'lambda' parameter expects a callable function.
+                # We dynamically get the correct Faker method (e.g., faker.name)
+                # and create a lambda that calls it.
+                faker_method = getattr(faker, faker_provider_name)
+                operators[entity_type] = OperatorConfig(
+                    "custom",
+                    {"lambda": lambda x: faker_method()}
+                )
+            else:
+                operators[entity_type] = OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
 
-    # Convert our entity format to Presidio's AnalyzerResult format
+        elif sensitivity == "Low Sensitivity":
+            operators[entity_type] = OperatorConfig(
+                "mask",
+                {"type": "fixed", "masking_char": "*", "chars_to_mask": len(entity['word']), "from_end": False}
+            )
+
     analyzer_results = []
     for entity in entities_with_sensitivity:
-        from presidio_analyzer import RecognizerResult
         analyzer_results.append(RecognizerResult(
             entity_type=entity['entity_group'],
             start=entity['start'],
             end=entity['end'],
-            score=entity.get('score', 0.85)  # Use detected score or a default
+            score=entity.get('score', 0.85)
         ))
 
-    # Anonymize the text
     anonymized_result = anonymizer.anonymize(
         text=original_text,
         analyzer_results=analyzer_results,
