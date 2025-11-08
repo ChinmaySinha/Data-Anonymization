@@ -4,6 +4,7 @@ def detect_pii_with_regex(text: str) -> list:
     """
     Detects fixed-format PII using regular expressions.
     """
+    # Patterns for common PII types
     patterns = {
         'EMAIL': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         'PHONE_NUMBER': r'\+91-?\d{10}',

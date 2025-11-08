@@ -1,76 +1,70 @@
+from presidio_anonymizer import AnonymizerEngine
+from presidio_anonymizer.entities import OperatorConfig
+from presidio_analyzer import RecognizerResult
 from faker import Faker
 
-# Initialize Faker. We can specify 'en_IN' for Indian-context names.
-faker = Faker('en_IN')
+# Initialize the AnonymizerEngine and Faker
+anonymizer = AnonymizerEngine()
+faker = Faker("en_IN") # Use Indian locale for context-appropriate fake data
 
-# Create a mapping from our model's entity types to the correct Faker function
+# Mapping of Presidio entity types to Faker method names
 FAKER_PROVIDER_MAP = {
-    'PERSON': faker.name,
-    'PER': faker.name,
-    'NAME': faker.name,
-    'CITY': faker.city,
-    'LOCATION': faker.address,
-    'ORGANIZATION': faker.company,
-    'ORG': faker.company,
-    'USERNAME': faker.user_name,
-    'EMAIL': faker.email,
-    'PHONE_NUMBER': faker.phone_number,
-    'TEL': faker.phone_number,
-    'IP_ADDRESS': faker.ipv4,
-    'IP': faker.ipv4,
-    'ID_NUM': faker.ssn,
+    'PERSON': 'name',
+    'EMAIL_ADDRESS': 'email',
+    'PHONE_NUMBER': 'phone_number',
+    'LOCATION': 'address',
+    'URL': 'url',
+    'IP_ADDRESS': 'ipv4',
+    'CREDIT_CARD': 'credit_card_number',
+    'US_SSN': 'ssn',
+    'US_DRIVER_LICENSE': 'license_plate',
+    'DATE_TIME': 'date',
+    'POLISH_IDENTITY_CARD': 'ssn',
 }
 
-def pseudonymize(entity_text, entity_type, pseudonym_map):
+def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
     """
-    Replaces an entity with a consistent but realistic fake value.
+    Anonymizes text using Presidio's AnonymizerEngine, replacing PII with
+    realistic fake data using a custom Faker operator.
     """
-    if entity_text not in pseudonym_map:
-        # Check if we have a specific Faker provider for this entity type
-        provider = FAKER_PROVIDER_MAP.get(entity_type.upper())
-        if provider:
-            # Generate a new, realistic fake value
-            pseudonym_map[entity_text] = provider()
-        else:
-            # Fallback for unknown entity types
-            new_id = len(pseudonym_map) + 1
-            pseudonym_map[entity_text] = f"[{entity_type.upper()}_{new_id}]"
-    
-    return pseudonym_map[entity_text]
-
-def generalize(entity_type):
-    """
-    Replaces an entity with its general category type (e.g., [CITY]).
-    """
-    return f"[{entity_type.upper()}]"
-
-def anonymize_text(original_text, entities_with_sensitivity):
-    """
-    Applies advanced anonymization techniques based on entity sensitivity.
-    """
-    anonymized_text = original_text
-    pseudonym_map = {}
-    
-    for entity in sorted(entities_with_sensitivity, key=lambda x: x['start'], reverse=True):
-        start = entity['start']
-        end = entity['end']
-        entity_type = entity['entity_group']
+    operators = {}
+    for entity in entities_with_sensitivity:
         sensitivity = entity['sensitivity']
-        original_entity_text = entity['word']
+        entity_type = entity['entity_group']
 
-        replacement_text = ""
-
-        # --- FINAL CORRECTED THRESHOLD LOGIC ---
         if sensitivity == "High Sensitivity" or sensitivity == "Medium Sensitivity":
-            # For High and Medium sensitivity, we will pseudonymize with realistic data.
-            replacement_text = pseudonymize(original_entity_text, entity_type, pseudonym_map)
-        
-        elif sensitivity == "Low Sensitivity":
-            # For Low sensitivity, we will generalize with a category tag.
-            replacement_text = generalize(entity_type)
-        # ----------------------------------------
+            faker_provider_name = FAKER_PROVIDER_MAP.get(entity_type)
+            if faker_provider_name:
+                # The 'lambda' parameter expects a callable function.
+                # We dynamically get the correct Faker method (e.g., faker.name)
+                # and create a lambda that calls it.
+                faker_method = getattr(faker, faker_provider_name)
+                operators[entity_type] = OperatorConfig(
+                    "custom",
+                    {"lambda": lambda x: faker_method()}
+                )
+            else:
+                operators[entity_type] = OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
 
-        if replacement_text:
-            anonymized_text = anonymized_text[:start] + replacement_text + anonymized_text[end:]
-            
-    return anonymized_text
+        elif sensitivity == "Low Sensitivity":
+            operators[entity_type] = OperatorConfig(
+                "mask",
+                {"type": "fixed", "masking_char": "*", "chars_to_mask": len(entity['word']), "from_end": False}
+            )
+
+    analyzer_results = []
+    for entity in entities_with_sensitivity:
+        analyzer_results.append(RecognizerResult(
+            entity_type=entity['entity_group'],
+            start=entity['start'],
+            end=entity['end'],
+            score=entity.get('score', 0.85)
+        ))
+
+    anonymized_result = anonymizer.anonymize(
+        text=original_text,
+        analyzer_results=analyzer_results,
+        operators=operators
+    )
+
+    return anonymized_result.text
