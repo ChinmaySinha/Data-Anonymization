@@ -20,7 +20,7 @@ FAKER_PROVIDER_MAP = {
     'US_DRIVER_LICENSE': 'license_plate',
     'DATE_TIME': 'date',
     'POLISH_IDENTITY_CARD': 'ssn',
-    'USERNAME': 'name', # <-- This is your change
+    'USERNAME': 'name', 
 }
 
 def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
@@ -40,8 +40,6 @@ def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
                 # We dynamically get the correct Faker method (e.g., faker.name)
                 # and create a lambda that calls it.
                 faker_method = getattr(faker, faker_provider_name)
-                
-                # --- THIS IS THE CORRECTED LINE ---
                 operators[entity_type] = OperatorConfig(
                     "custom",
                     {"lambda": lambda x: faker_method()}
@@ -49,11 +47,16 @@ def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
             else:
                 operators[entity_type] = OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
 
+        # --- THIS IS THE MODIFIED BLOCK ---
         elif sensitivity == "Low Sensitivity":
+            # We now use the "replace" operator to insert a
+            # placeholder instead of masking with asterisks.
+            placeholder = f"[{entity_type}]"
             operators[entity_type] = OperatorConfig(
-                "mask",
-                {"type": "fixed", "masking_char": "*", "chars_to_mask": len(entity['word']), "from_end": False}
+                "replace", 
+                {"new_value": placeholder}
             )
+        # --- END OF MODIFIED BLOCK ---
 
     analyzer_results = []
     for entity in entities_with_sensitivity:
