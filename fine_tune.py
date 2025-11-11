@@ -21,7 +21,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_dataset_path = os.path.join(script_dir, "pii-masking-300k")
+    local_dataset_path = os.path.join(script_dir, "pii-masking-300k", "data")
     dataset_dict = load_dataset(local_dataset_path)
     
     unique_labels = set(label['label'] for split in dataset_dict.values() for item in split for label in item['privacy_mask'])

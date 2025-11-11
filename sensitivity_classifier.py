@@ -20,6 +20,7 @@ SENSITIVITY_MAP = {
     "DATE_TIME": "Medium Sensitivity",
     "LOCATION": "Medium Sensitivity",
     "URL": "Medium Sensitivity",
+    "USERNAME": "Medium Sensitivity",  # <-- THIS LINE IS NOW ADDED
 
     # Low sensitivity entities
     "NRP": "Low Sensitivity",

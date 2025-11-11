@@ -20,6 +20,7 @@ FAKER_PROVIDER_MAP = {
     'US_DRIVER_LICENSE': 'license_plate',
     'DATE_TIME': 'date',
     'POLISH_IDENTITY_CARD': 'ssn',
+    'USERNAME': 'name', # <-- This is your change
 }
 
 def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
@@ -39,6 +40,8 @@ def anonymize_text(original_text: str, entities_with_sensitivity: list) -> str:
                 # We dynamically get the correct Faker method (e.g., faker.name)
                 # and create a lambda that calls it.
                 faker_method = getattr(faker, faker_provider_name)
+                
+                # --- THIS IS THE CORRECTED LINE ---
                 operators[entity_type] = OperatorConfig(
                     "custom",
                     {"lambda": lambda x: faker_method()}
